@@ -1,31 +1,37 @@
-const express = require("express");
-const app = express();
-const cors = require("cors");
-require("dotenv").config();
+const express = require('express')
+const mongo = require("mongodb")
+const app = express()
+const bodyParser = require('body-parser')
+const cors = require('cors')
+const mongoose = require('mongoose')
+require('dotenv').config();
 
-const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-app.use(bodyParser.urlencoded({ extended: true }));
-mongoose.connect(process.env.MONGO_URI);
+//database schema
+const {Schema} = mongoose;
 
-app.use(cors());
-app.use(express.static("public"));
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/views/index.html");
-});
-
-let userSchema = new mongoose.Schema({
+const userSchema = new Schema({
   name: String,
-  exercises: [
-    {
-      duration: Date,
-      description: String,
-      date: Date,
-    },
-  ],
+  exercises:[{
+    duration: Date,
+    description: String,
+    date: Date
+  }]
+})
+
+let User = mongoose.model('User',userSchema);
+
+mongoose.connect(process.env.MONGO_URI,()=>console.log("connected to Mongodb"))
+
+
+//middleware
+app.use(cors())
+app.use(express.static('public'))
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html')
 });
 
-const User = mongoose.model("User", userSchema);
+app.use(bodyParser.urlencoded({extended: false}))
+app.use(bodyParser.json())
 
 app.get("/api/exercise/users", (req, res, done) => {
   User.find({}, (err, users) => {
