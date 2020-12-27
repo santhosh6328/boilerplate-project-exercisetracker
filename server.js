@@ -14,81 +14,80 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/views/index.html");
 });
 
-let personSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  duration: String,
-  description: String,
-  date: String,
-  created: String,
+let userSchema = new mongoose.Schema({
+  name: String,
+  exercises: [
+    {
+      duration: Date,
+      description: String,
+      date: Date,
+    },
+  ],
 });
 
-const Person = mongoose.model("Person", personSchema);
-
-app.post("/api/exercise/new-user/", (req, res, done) => {
-  createdDate = new Date().toLocaleDateString("en-CA");
-  var newuser = new Person({
-    name: req.body.username,
-    duration: "",
-    description: "",
-    date: "",
-    created: createdDate,
-  });
-  console.log(typeof req.body.username);
-  newuser.save((err, data) => {
-    if (err) return console.error(err);
-    var result = {
-      username: req.body.username,
-      _id: data._id,
-    };
-    res.send(result);
-    done(null, data);
-  });
-});
+const User = mongoose.model("User", userSchema);
 
 app.get("/api/exercise/users", (req, res, done) => {
-  Person.find({}, (err, users) => {
+  User.find({}, (err, users) => {
     if (err) return console.log(err);
     res.send(users);
     done(null, users);
   });
 });
 
-app.post("/api/exercise/add", (req, res, done) => {
-  // var inputDuration = req.body.duration
-  var inputDescription = req.body.description;
-  console.log(typeof req.body.duration);
-  console.log(typeof req.body.time);
-  Person.findById({ _id: req.body.userId }, (err, person) => {
-    if (err) return console.log(err);
-    person.description = req.body.description;
-    person.duration = req.body.duration;
-    person.date = req.body.date || new Date().toLocaleDateString("en-CA");
-    person.save((err, updatedPerson) => {
-      if (err) return console.error(err);
-      done(null, updatedPerson);
+app.post("/api/exercise/new-user", (req, res, next) => {
+  let user = new User({ name: req.body.username });
+  user.exercises = [];
+  user.save();
+  res.json(user);
+});
+
+app.post("/api/exercise/add", (req, res, next) => {
+  User.findOne({ _id: req.body.userId }, (err, user) => {
+    let date = new Date();
+    if (req.body.date) {
+      date = new Date(req.body.date);
+    }
+    user.exercises.push({
+      duration: new Date(req.body.duration),
+      description: req.body.description,
+      date: date,
     });
-    res.send(person);
-    done(null, person);
+    user.save();
+    res.status(200).json(user);
   });
 });
 
-app.get("/api/exercise/log/:userId/:from?/:to?/:limit?", (req, res, done) => {
-  if (req.params.from) {
-    Person.findById({ _id: req.params.userId }, (err, personId) => {
-      if (err) return console.log(err);
-      res.send(personId);
-      done(null, personId);
-    });
-  } else {
-    Person.find({ date: { $gte: req.params.from, $lt: req.params.to } })
-      .sort({ name: 1 })
-      .limit(req.params.limit)
-      .select()
-      .exec((err, person) => {
-        if (err) return console.log(err);
-        done(null, person);
-      });
+app.get("/api/exercise/log", (req, res, next) => {
+  let to = new Date();
+  if (req.query.to) {
+    to = new Date(req.query.to);
   }
+  let from = new Date(1900 - 10 - 10);
+  if (req.query.from) {
+    from = new Date(req.query.from);
+  }
+
+  let limit = req.query.limit || null;
+
+  User.findOne({ _id: req.query.userId }, (err, user) => {
+    let exercises = user.exercises;
+    let filtered = [...exercises].filter(
+      (ex) => ex.date.getTime() >= from.getTime() && ex.date.getTime() <= to.getTime()
+    );
+    if (!limit) {
+      limit = filtered.length;
+    }
+    let resArr = [];
+    for (let i = 0; i < filtered.length && i < limit; i++) {
+      resArr.push({
+        duration: filtered[i].duration,
+        description: filtered[i].description,
+        date: filtered[i].date,
+      });
+    }
+    res.send(resArr);
+  });
 });
 
 const listener = app.listen(process.env.PORT || 3000, () => {
