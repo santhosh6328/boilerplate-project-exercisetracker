@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/users", (req, res) => {
-  User.find({}, "-__v -log", (err, result) => {
+  User.find({}, "-log", (err, result) => {
     if (err) return err;
     res.send(result);
   });
