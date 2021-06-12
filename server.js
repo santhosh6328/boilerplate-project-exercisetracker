@@ -1,98 +1,70 @@
-const express = require('express')
-const mongo = require("mongodb")
-const app = express()
-const bodyParser = require('body-parser')
-const cors = require('cors')
-const mongoose = require('mongoose')
-require('dotenv').config();
+"use strict";
+const express = require("express");
+const app = express();
+const User = require("./models/user");
+const cors = require("cors");
 
-//database schema
-const {Schema} = mongoose;
-
-const userSchema = new Schema({
-  name: String,
-  exercises:[{
-    duration: Date,
-    description: String,
-    date: Date
-  }]
-})
-
-let User = mongoose.model('User',userSchema);
-
-mongoose.connect(process.env.MONGO_URI,()=>console.log("connected to Mongodb"))
-
-
-//middleware
-app.use(cors())
-app.use(express.static('public'))
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/views/index.html')
+app.use(cors());
+app.use(express.static("public"));
+app.use(express.json());
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/views/index.html");
 });
 
-app.use(bodyParser.urlencoded({extended: false}))
-app.use(bodyParser.json())
-
-app.get("/api/exercise/users", (req, res, done) => {
-  User.find({}, (err, users) => {
-    if (err) return console.log(err);
-    res.send(users);
-    done(null, users);
+app.get("/api/users", (req, res) => {
+  User.find((err, result) => {
+    if (err) return err;
+    res.send(result);
   });
 });
 
-app.post("/api/exercise/new-user", (req, res, next) => {
-  let user = new User({ name: req.body.username });
-  user.exercises = [];
-  user.save();
-  res.json(user);
-});
-
-app.post("/api/exercise/add", (req, res, next) => {
-  User.findOne({ _id: req.body.userId }, (err, user) => {
-    let date = new Date();
-    if (req.body.date) {
-      date = new Date(req.body.date);
-    }
-    user.exercises.push({
-      duration: new Date(req.body.duration),
-      description: req.body.description,
-      date: date,
-    });
-    user.save();
-    res.status(200).json(user);
+app.post("/api/users", (req, res) => {
+  const user = new User({
+    username: req.body.username,
+  });
+  user.save((err, result) => {
+    if (err) throw err;
+    let output = {};
+    output._id = result._id;
+    output.username = result.username;
+    res.send(output);
   });
 });
 
-app.get("/api/exercise/log", (req, res, next) => {
-  let to = new Date();
-  if (req.query.to) {
-    to = new Date(req.query.to);
-  }
-  let from = new Date(1900 - 10 - 10);
-  if (req.query.from) {
-    from = new Date(req.query.from);
-  }
+app.post("/api/users/:_id/exercises", async (req, res) => {
+  const query = { _id: req.params._id };
+  const input = {
+    $push: {
+      log: {
+        description: req.body.description,
+        duration: req.body.duration,
+      },
+    },
+  };
+  User.findOneAndUpdate(query, input, (err, result) => {
+    let output = {};
+    output._id = result._id;
+    output.username = result.username;
+    output.log = result.log;
+    res.send(output);
+  });
+});
 
-  let limit = req.query.limit || null;
-
-  User.findOne({ _id: req.query.userId }, (err, user) => {
-    let exercises = user.exercises;
-    let filtered = [...exercises].filter(
-      (ex) => ex.date.getTime() >= from.getTime() && ex.date.getTime() <= to.getTime()
-    );
-    if (!limit) {
-      limit = filtered.length;
+app.get("/api/users/:_id/logs/:from?/:to?/:limit?", (req, res) => {
+  User.findOne({ _id: req.params._id }, { __v: 0 }, (err, result) => {
+    if (err) console.log(err);
+    let output = {};
+    output._id = result._id;
+    output.username = result.username;
+    output.count = result.log.length;
+    if (req.params.limit) {
+      if (output.count > req.params.limit) {
+        output.log = result.log.slice(0, req.params.limit);
+      }
+    } else {
+      output.log = result.log;
     }
-    let resArr = [];
-    for (let i = 0; i < filtered.length && i < limit; i++) {
-      resArr.push({
-        duration: filtered[i].duration,
-        description: filtered[i].description,
-        date: filtered[i].date,
-      });
-    }
-    res.send(resArr);
+    res.send(output);
   });
 });
 
