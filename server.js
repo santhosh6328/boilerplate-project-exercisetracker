@@ -3,18 +3,18 @@ const express = require("express");
 const app = express();
 const User = require("./models/user");
 const cors = require("cors");
-var bodyParser = require('body-parser');
-var multer = require('multer');
+var bodyParser = require("body-parser");
+var multer = require("multer");
 var upload = multer();
 
-app.use(bodyParser.json()); 
+app.use(bodyParser.json());
 // for parsing application/xwww-
-app.use(bodyParser.urlencoded({ extended: true })); 
+app.use(bodyParser.urlencoded({ extended: true }));
 //form-urlencoded
 
 // for parsing multipart/form-data
-app.use(upload.array()); 
-app.use(express.static('public'));
+app.use(upload.array());
+app.use(express.static("public"));
 
 app.use(cors());
 app.use(express.static("public"));
@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/users", (req, res) => {
-  User.find((err, result) => {
+  User.find({}, "-__v -log", (err, result) => {
     if (err) return err;
     res.send(result);
   });
@@ -50,14 +50,20 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
       log: {
         description: req.body.description,
         duration: req.body.duration,
+        date: req.body.date,
       },
     },
   };
   User.findOneAndUpdate(query, input, (err, result) => {
+    if (err) {
+      console.log(err);
+    }
     let output = {};
     output._id = result._id;
     output.username = result.username;
-    output.log = result.log;
+    output.date = result.log.pop()["date"];
+    output.duration = req.body.duration;
+    output.description = req.body.description;
     res.send(output);
   });
 });
