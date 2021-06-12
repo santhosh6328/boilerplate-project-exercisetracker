@@ -3,6 +3,18 @@ const express = require("express");
 const app = express();
 const User = require("./models/user");
 const cors = require("cors");
+var bodyParser = require('body-parser');
+var multer = require('multer');
+var upload = multer();
+
+app.use(bodyParser.json()); 
+// for parsing application/xwww-
+app.use(bodyParser.urlencoded({ extended: true })); 
+//form-urlencoded
+
+// for parsing multipart/form-data
+app.use(upload.array()); 
+app.use(express.static('public'));
 
 app.use(cors());
 app.use(express.static("public"));
@@ -25,8 +37,8 @@ app.post("/api/users", (req, res) => {
   user.save((err, result) => {
     if (err) throw err;
     let output = {};
-    output._id = result._id;
     output.username = result.username;
+    output._id = result._id;
     res.send(output);
   });
 });
