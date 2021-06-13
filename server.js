@@ -6,6 +6,7 @@ const cors = require("cors");
 var bodyParser = require("body-parser");
 var multer = require("multer");
 var upload = multer();
+const moment = require("moment");
 
 app.use(bodyParser.json());
 // for parsing application/xwww-
@@ -49,40 +50,56 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
     $push: {
       log: {
         description: req.body.description,
-        duration: req.body.duration,
+        duration: parseInt(req.body.duration),
         date: req.body.date,
       },
     },
   };
-  User.findOneAndUpdate(query, input, (err, result) => {
+  User.findOneAndUpdate(query, input, { "new": true }, (err, result) => {
     if (err) {
+      res.send(err);
+    }
+    // console.log(result);
+    try {
+      let output = {};
+      output._id = result._id;
+      output.username = result.username;
+      var log_element = result.log.pop();
+      var fomatted_date = moment(log_element["date"]).format('ddd MMM DD YYYY');
+      console.log(log_element);
+      output.date = fomatted_date;
+      output.duration = log_element["duration"];
+      output.description = log_element["description"];
+      res.send(output);
+    } catch (err) {
       console.log(err);
     }
-    let output = {};
-    output._id = result._id;
-    output.username = result.username;
-    output.date = result.log.pop()["date"];
-    output.duration = req.body.duration;
-    output.description = req.body.description;
-    res.send(output);
   });
 });
 
 app.get("/api/users/:_id/logs/:from?/:to?/:limit?", (req, res) => {
   User.findOne({ _id: req.params._id }, { __v: 0 }, (err, result) => {
-    if (err) console.log(err);
-    let output = {};
-    output._id = result._id;
-    output.username = result.username;
-    output.count = result.log.length;
-    if (req.params.limit) {
-      if (output.count > req.params.limit) {
-        output.log = result.log.slice(0, req.params.limit);
+    if (err) { console.log(err); }
+    try {
+      let output = {};
+      output._id = result._id;
+      output.username = result.username;
+      output.count = result.log.length;
+      if (req.params.limit) {
+        if (output.count > req.params.limit) {
+          output.log = result.log.slice(0, req.params.limit);
+          console.log(output);
+        }
+      } else {
+        let temp_arr = result.log;
+        temp_arr.map(({ duration, description, date }) => ({ duration, description, date }));
+        output.log = temp_arr;
       }
-    } else {
-      output.log = result.log;
+
+      res.send(output);
+    } catch (err) {
+      console.log(err.message);
     }
-    res.send(output);
   });
 });
 
