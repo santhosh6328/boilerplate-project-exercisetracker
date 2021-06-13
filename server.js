@@ -6,12 +6,6 @@ const cors = require("cors");
 var bodyParser = require("body-parser");
 var multer = require("multer");
 var upload = multer();
-const moment = require("moment");
-
-app.use(bodyParser.json());
-// for parsing application/xwww-
-app.use(bodyParser.urlencoded({ extended: true }));
-//form-urlencoded
 
 // for parsing multipart/form-data
 app.use(upload.array());
@@ -26,80 +20,83 @@ app.get("/", (req, res) => {
 
 app.get("/api/users", (req, res) => {
   User.find({}, "-log", (err, result) => {
-    if (err) return err;
-    res.send(result);
+    if (!err) {
+      res.send(result);
+    }
   });
 });
 
-app.post("/api/users", (req, res) => {
+app.post("/api/users", bodyParser.urlencoded({ extended: true }), (req, res) => {
   const user = new User({
     username: req.body.username,
   });
   user.save((err, result) => {
-    if (err) throw err;
-    let output = {};
-    output.username = result.username;
-    output._id = result._id;
-    res.send(output);
+    if (!err) {
+      let output = {};
+      output.username = result.username;
+      output._id = result._id;
+      res.send(output);
+    }
   });
 });
 
-app.post("/api/users/:_id/exercises", async (req, res) => {
+app.post("/api/users/:_id/exercises", bodyParser.urlencoded({ extended: true }), async (req, res) => {
   const query = { _id: req.params._id };
+  let session = {
+    description: req.body.description,
+    duration: parseInt(req.body.duration),
+    date: req.body.date
+  };
+  if (session.date === '') {
+    session.date = new Date().toISOString.substring(0, 10);
+  }
   const input = {
-    $push: {
-      log: {
-        description: req.body.description,
-        duration: parseInt(req.body.duration),
-        date: req.body.date,
-      },
-    },
+    $push: { log: session },
   };
   User.findOneAndUpdate(query, input, { "new": true }, (err, result) => {
     if (err) {
       res.send(err);
     }
-    // console.log(result);
-    try {
-      let output = {};
-      output._id = result._id;
-      output.username = result.username;
-      var log_element = result.log.pop();
-      var fomatted_date = moment(log_element["date"]).format('ddd MMM DD YYYY');
-      console.log(log_element);
-      output.date = fomatted_date;
-      output.duration = log_element["duration"];
-      output.description = log_element["description"];
-      res.send(output);
-    } catch (err) {
-      console.log(err);
-    }
+    let output = {}
+    output['_id'] = result._id;
+    output['username'] = result.username;
+    output['description'] = session.description;
+    output['duration'] = session.duration;
+    output['date'] = new Date(session.date).toDateString();
+    res.send(output);
   });
 });
 
 app.get("/api/users/:_id/logs/:from?/:to?/:limit?", (req, res) => {
   User.findOne({ _id: req.params._id }, { __v: 0 }, (err, result) => {
     if (err) { console.log(err); }
-    try {
-      let output = {};
-      output._id = result._id;
-      output.username = result.username;
-      output.count = result.log.length;
-      if (req.params.limit) {
-        if (output.count > req.params.limit) {
-          output.log = result.log.slice(0, req.params.limit);
-          console.log(output);
-        }
-      } else {
-        let temp_arr = result.log;
-        temp_arr.map(({ duration, description, date }) => ({ duration, description, date }));
-        output.log = temp_arr;
+    let responseObject = {};
+    responseObject['_id'] = result._id;
+    responseObject['username'] = result.username;
+    responseObject['count'] = result.log.length;  
+    if (req.query.from || req.query.to) {
+      let fromDate = new Date(0);
+      let toDate = new Date();
+      if (req.query.from) {
+        fromDate = new Date(req.query.from);
       }
+      if (req.query.to) {
+        fromDate = new Date(req.query.to);
+      }
+      fromDate = fromDate.getTime();
+      toDate = toDate.getTime();
 
-      res.send(output);
-    } catch (err) {
-      console.log(err.message);
+      responseObject.log = result.log.filter((session) => {
+        let sessionDate = new Date(session.date).getTime();
+        return sessionDate >= fromDate && sessionDate <= toDate;
+      });
     }
+    if (req.query.limit) {
+      responseObject['log'] = result.log.slice(0, req.query.limit);
+    } else {
+      responseObject['log'] = result.log;
+    }
+    res.send(responseObject);
   });
 });
 
